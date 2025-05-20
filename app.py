@@ -1,20 +1,19 @@
 import streamlit as st
-import cv2
 import pandas as pd
+import cv2
 import numpy as np
-from sklearn.cluster import KMeans
-from PIL import Image
-import io
+from streamlit_image_coordinates import streamlit_image_coordinates
 
-# Load color data
+# Load color dataset
 @st.cache_data
 def load_colors():
     return pd.read_csv("colors.csv")
 
-# Match closest color name
-def get_color_name(R, G, B, df):
-    minimum = float("inf")
-    cname = "Unknown"
+df = load_colors()
+
+def get_color_name(R, G, B):
+    minimum = float('inf')
+    cname = ""
     for i in range(len(df)):
         d = abs(R - int(df.loc[i, "R"])) + abs(G - int(df.loc[i, "G"])) + abs(B - int(df.loc[i, "B"]))
         if d < minimum:
@@ -22,57 +21,31 @@ def get_color_name(R, G, B, df):
             cname = df.loc[i, "color_name"]
     return cname
 
-# Extract dominant colors using KMeans
-def extract_palette(image, n_colors=5):
-    img = image.reshape((-1, 3))
-    kmeans = KMeans(n_clusters=n_colors, random_state=42)
-    kmeans.fit(img)
-    colors = np.round(kmeans.cluster_centers_).astype(int)
-    return colors
+# UI
+st.title("Hover-Based Color Detection App")
 
-# Streamlit UI
-st.set_page_config(page_title="Color Palette Extractor", layout="wide")
-st.title("🎨 Color Palette Extractor from Image Region")
-st.write("Upload an image and select a region to extract the dominant colors.")
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
+if uploaded_file:
+    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    img = cv2.imdecode(file_bytes, 1)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
-df_colors = load_colors()
+    # Resize for UI
+    img_resized = cv2.resize(img, (600, 400))
 
-if uploaded_file is not None:
-    image = Image.open(uploaded_file)
-    img_array = np.array(image)
+    # Show image and get coordinates
+    coords = streamlit_image_coordinates(img_resized, key="hover")
 
-    st.image(image, caption="Uploaded Image", use_column_width=True)
+    if coords is not None:
+        x, y = int(coords["x"]), int(coords["y"])
+        if 0 <= x < img_resized.shape[1] and 0 <= y < img_resized.shape[0]:
+            R, G, B = img_resized[y, x]
+            color_name = get_color_name(R, G, B)
 
-    st.subheader("Crop Region (pixels)")
-    col1, col2 = st.columns(2)
-    with col1:
-        x1 = st.number_input("Start X", min_value=0, max_value=img_array.shape[1] - 1, value=0)
-        y1 = st.number_input("Start Y", min_value=0, max_value=img_array.shape[0] - 1, value=0)
-    with col2:
-        x2 = st.number_input("End X", min_value=1, max_value=img_array.shape[1], value=img_array.shape[1])
-        y2 = st.number_input("End Y", min_value=1, max_value=img_array.shape[0], value=img_array.shape[0])
-
-    if st.button("Extract Palette"):
-        if x2 > x1 and y2 > y1:
-            region = img_array[int(y1):int(y2), int(x1):int(x2)]
-            dominant_colors = extract_palette(region, n_colors=5)
-
-            st.subheader("🎨 Dominant Colors")
-            for i, color in enumerate(dominant_colors):
-                R, G, B = color
-                color_name = get_color_name(R, G, B, df_colors)
-                st.markdown(
-                    f"""
-                    <div style='display:flex;align-items:center;margin-bottom:10px'>
-                        <div style='width:40px;height:40px;background-color:rgb({R},{G},{B});border:1px solid #000;margin-right:10px'></div>
-                        <div>
-                            <strong>{color_name}</strong><br/>
-                            RGB: ({R}, {G}, {B})
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-        else:
-            st.error("Invalid region. Make sure End X > Start X and End Y > Start Y.")
+            st.markdown(f"**Hovered Pixel at ({x}, {y})**")
+            st.markdown(f"**Color Name**: `{color_name}`")
+            st.markdown(f"**RGB**: ({R}, {G}, {B})")
+            st.markdown(
+                f'<div style="width:100px;height:50px;background-color:rgb({R},{G},{B});border:1px solid #000;"></div>',
+                unsafe_allow_html=True
+            )

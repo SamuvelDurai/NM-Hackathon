@@ -23,7 +23,7 @@ def get_color_name(R, G, B):
     return closest_name
 
 # UI
-st.title("🎨 Hover-Based Color Detection App")
+st.title("🎨 Click-Based Color Detection App")
 
 uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 if uploaded_file:

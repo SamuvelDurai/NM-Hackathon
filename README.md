@@ -9,6 +9,8 @@ This tool lets users upload an image and select a rectangular region to extract 
 - Extract 5 dominant colors from the selected region
 - View color swatches with RGB and closest name from dataset
 
+Link : https://color-detection-app.streamlit.app/
+
 ## How to Run
 
 ```bash
